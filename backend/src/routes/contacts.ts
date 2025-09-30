@@ -89,7 +89,8 @@ router.get('/:userId', async (req, res) => {
         .from('chat_participants')
         .select(`
           chat_id,
-          users:user_id(id, login, name, avatar, is_online, last_seen)
+          user_id,
+          users!user_id(id, login, name, avatar, is_online, last_seen)
         `)
         .in('chat_id', chatIds)
         .neq('user_id', userId);
