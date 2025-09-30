@@ -97,15 +97,16 @@ router.get('/:userId', async (req, res) => {
 
       if (otherParticipants) {
         for (const participant of otherParticipants) {
-          if (participant.users && !explicitContactIds.has(participant.users.id)) {
+          const user = Array.isArray(participant.users) ? participant.users[0] : participant.users;
+          if (user && !explicitContactIds.has(user.id)) {
             allContacts.push({
               id: `chat_${participant.chat_id}`,
               user_id: userId,
-              contact_user_id: participant.users.id,
-              contact_user: participant.users,
+              contact_user_id: user.id,
+              contact_user: user,
               created_at: new Date().toISOString(),
             });
-            explicitContactIds.add(participant.users.id);
+            explicitContactIds.add(user.id);
           }
         }
       }
