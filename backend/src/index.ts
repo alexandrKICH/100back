@@ -16,9 +16,12 @@ dotenv.config();
 
 const app = express();
 const httpServer = createServer(app);
+
+const frontendUrl = (process.env.FRONTEND_URL || 'http://localhost:5000').replace(/\/$/, '');
+
 const io = new Server(httpServer, {
   cors: {
-    origin: process.env.FRONTEND_URL || 'http://localhost:5000',
+    origin: frontendUrl,
     methods: ['GET', 'POST', 'PUT', 'DELETE'],
     credentials: true,
   },
@@ -27,7 +30,7 @@ const io = new Server(httpServer, {
 const PORT = process.env.PORT || 3001;
 
 app.use(cors({
-  origin: process.env.FRONTEND_URL || 'http://localhost:5000',
+  origin: frontendUrl,
   credentials: true,
 }));
 app.use(express.json({ limit: '50mb' }));
