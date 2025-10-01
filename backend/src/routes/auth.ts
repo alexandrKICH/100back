@@ -37,7 +37,8 @@ router.post('/register', async (req, res) => {
 
     if (error) throw error;
 
-    res.json(user);
+    const { password_hash, ...userWithoutPassword } = user;
+    res.json(userWithoutPassword);
   } catch (error: any) {
     res.status(500).json({ error: error.message });
   }
@@ -71,7 +72,8 @@ router.post('/login', async (req, res) => {
       })
       .eq('id', user.id);
 
-    res.json(user);
+    const { password_hash, ...userWithoutPassword } = user;
+    res.json(userWithoutPassword);
   } catch (error: any) {
     res.status(500).json({ error: error.message });
   }
