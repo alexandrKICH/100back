@@ -161,4 +161,101 @@ router.get('/last/:chatId', async (req, res) => {
   }
 });
 
+// NEW BATCH ENDPOINT - Gets all last messages for user's chats in ONE query
+// FIXED: Now handles both private and group chats correctly with proper UI keys
+router.get('/batch/last-messages/:userId', async (req, res) => {
+  const { userId } = req.params;
+
+  try {
+    // Get all user's chats (private and group) with type info
+    const { data: userChats, error: chatsError } = await supabase
+      .from('chat_participants')
+      .select('chat_id, chats!inner(type, group_id)')
+      .eq('user_id', userId);
+
+    if (chatsError) throw chatsError;
+    if (!userChats || userChats.length === 0) {
+      return res.json({});
+    }
+
+    const chatIds = userChats.map((c: any) => c.chat_id);
+
+    // Get last message for each chat in ONE query
+    const { data: allMessages, error: messagesError } = await supabase
+      .from('messages')
+      .select('chat_id, content, created_at, message_type')
+      .in('chat_id', chatIds)
+      .order('chat_id')
+      .order('created_at', { ascending: false });
+
+    if (messagesError) throw messagesError;
+
+    // Group messages by chat_id and get the latest one for each
+    const lastMessagesByChatId: Record<string, any> = {};
+    const seenChats = new Set<string>();
+
+    if (allMessages) {
+      for (const msg of allMessages) {
+        if (!seenChats.has(msg.chat_id)) {
+          seenChats.add(msg.chat_id);
+          lastMessagesByChatId[msg.chat_id] = {
+            text: msg.content || '',
+            time: new Date(msg.created_at),
+            type: msg.message_type,
+          };
+        }
+      }
+    }
+
+    // Get all participants for private chats to determine the other user
+    const { data: allParticipants, error: participantsError } = await supabase
+      .from('chat_participants')
+      .select('chat_id, user_id')
+      .in('chat_id', chatIds)
+      .neq('user_id', userId);
+
+    if (participantsError) throw participantsError;
+
+    // Map chat_id to the other user's ID (for private chats only)
+    const chatToOtherUser: Record<string, string> = {};
+    if (allParticipants) {
+      for (const participant of allParticipants) {
+        chatToOtherUser[participant.chat_id] = participant.user_id;
+      }
+    }
+
+    // Build result with proper UI keys:
+    // - For private chats: key = other user's ID
+    // - For group chats: key = group_id
+    const result: Record<string, any> = {};
+    
+    for (const chat of userChats) {
+      const chatId = chat.chat_id;
+      const chatInfo = Array.isArray(chat.chats) ? chat.chats[0] : chat.chats;
+      const message = lastMessagesByChatId[chatId];
+      
+      if (message && chatInfo) {
+        let uiKey: string;
+        
+        if (chatInfo.type === 'group' && chatInfo.group_id) {
+          // For groups: use group_id as key
+          uiKey = chatInfo.group_id;
+        } else {
+          // For private chats: use other user's ID as key
+          uiKey = chatToOtherUser[chatId];
+        }
+        
+        if (uiKey) {
+          result[uiKey] = message;
+        }
+      }
+    }
+
+    res.json(result);
+  } catch (error: any) {
+    console.error('Batch last messages error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 export default router;
