@@ -4,6 +4,12 @@ import dotenv from 'dotenv';
 import { createServer } from 'http';
 import { Server } from 'socket.io';
 
+// Polyfill fetch for Node.js < 18
+if (!globalThis.fetch) {
+  const fetch = require('node-fetch');
+  globalThis.fetch = fetch;
+}
+
 import authRoutes from './routes/auth';
 import contactRoutes from './routes/contacts';
 import groupRoutes from './routes/groups';
@@ -68,7 +74,24 @@ io.on('connection', (socket) => {
 
 export { io };
 
-httpServer.listen(PORT, () => {
-  console.log(`🚀 Backend server running on http://localhost:${PORT}`);
+httpServer.listen(PORT, '0.0.0.0', () => {
+  console.log(`🚀 Backend server running on http://0.0.0.0:${PORT}`);
   console.log(`🔌 Socket.IO ready for connections`);
+  
+  // Keep-alive mechanism for Render deployment
+  if (process.env.NODE_ENV === 'production') {
+    const RENDER_URL = process.env.RENDER_EXTERNAL_URL || `http://localhost:${PORT}`;
+    
+    // Ping self every 14 minutes to prevent Render sleep
+    setInterval(async () => {
+      try {
+        const response = await fetch(`${RENDER_URL}/health`);
+        console.log(`🏓 Keep-alive ping: ${response.status} at ${new Date().toISOString()}`);
+      } catch (error) {
+        console.log('🏓 Keep-alive ping failed:', error);
+      }
+    }, 14 * 60 * 1000); // 14 minutes
+    
+    console.log('🔄 Keep-alive mechanism activated for production');
+  }
 });
